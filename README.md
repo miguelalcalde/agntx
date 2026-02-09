@@ -41,6 +41,13 @@ npx agntx https://github.com/ruvnet/claude-flow/.cursor
 - `-f, --force` - Overwrite existing installed files without prompting
 - `--all` - Shorthand for `--agent-file '*' --agent '*' -y`
 
+When running interactively (without `-y`), the wizard prompts for:
+- agents to install
+- target tools
+- installation scope (`project` or `global`)
+- install mode (`symlink` or `copy`)
+- final proceed confirmation
+
 ### Install Mode and Canonical Storage
 
 Install mode is independent from target tools.
@@ -61,6 +68,24 @@ Example (`cursor` only, project scope, `symlink` mode):
 ```
 
 Note: symlink mode currently supports macOS/unix. Use `--mode copy` (or `--no-symlink`) otherwise.
+
+### Wizard Defaults Cache
+
+After a successful interactive install, `agntx` saves your defaults to:
+
+```
+~/.agntx/preferences.json
+```
+
+Cached defaults include:
+- selected target tools
+- installation scope (`project` or `global`)
+- install mode (`symlink` or `copy`)
+
+Precedence rules:
+- explicit CLI flags always win (`-g`, `-a`, `--mode`, `--no-symlink`)
+- cache is used as the interactive default when flags are omitted
+- `-y` / `--all` stays promptless and deterministic
 
 ### Source Directory Selection
 
@@ -186,15 +211,9 @@ Your agent's system prompt goes here.
 $ npx agntx add vercel-labs/agents
 
 Fetching vercel-labs/agents...
+Found 5 agents in .agents/agents
 
-Found 5 agents:
-  ✓ code-review     Review code for best practices
-  ✓ pr-summary      Generate PR summaries  
-  ✓ test-writer     Write unit tests
-  ✓ docs-generator  Generate documentation
-  ✓ refactor        Suggest refactoring improvements
-
-? Select agents to install: (Press <space> to select, <a> to toggle all)
+? Select agents to install:
 ❯ ◉ code-review
   ◉ pr-summary
   ◯ test-writer
@@ -203,16 +222,39 @@ Found 5 agents:
 
 ? Select target agent tools:
 ❯ ◉ cursor
-  ◉ claude
+  ◉ claude code
   ◯ codex
+  ───
+  - openclaw (coming soon)
+  - cline (coming soon)
 
-Installing 2 agents to 2 tools...
-  ✓ code-review → .cursor/agents/code-review.md
-  ✓ code-review → .claude/agents/code-review.md
-  ✓ pr-summary → .cursor/agents/pr-summary.md
-  ✓ pr-summary → .claude/agents/pr-summary.md
+? Select installation scope:
+❯ Project (Install in current directory) (recommended)
+  Global (Install for all projects)
 
-Done! Installed 2 agents.
+? Select install mode:
+❯ symlink (recommended)
+  copy
+
+? Proceed with installation?
+  - Source: vercel-labs/agents:.agents/agents
+  - Agents (2): code-review, pr-summary
+  - Tools: cursor, claude
+  - Scope: project
+  - Install mode: symlink
+  - Canonical directory: .agents/agents
+
+Installing 2 agents using symlink mode to 2 tools (project scope)...
+✓ code-review → .cursor/agents/code-review.md
+✓ code-review → .claude/agents/code-review.md
+✓ pr-summary → .cursor/agents/pr-summary.md
+✓ pr-summary → .claude/agents/pr-summary.md
+
+✓ Done! Installed 4 agent files.
+ℹ Summary: 4 installed, 0 failed, 0 skipped.
+ℹ cursor: 2 installed, 0 failed, 0 skipped
+ℹ claude: 2 installed, 0 failed, 0 skipped
+ℹ Saved install defaults to ~/.agntx/preferences.json
 ```
 
 ## License

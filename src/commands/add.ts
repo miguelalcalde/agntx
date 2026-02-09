@@ -20,10 +20,18 @@ import {
   getCanonicalAgentDir,
 } from "../lib/config"
 import {
+  getPreferencesPath,
+  readInstallPreferences,
+  writeInstallPreferences,
+  type InstallScope,
+} from "../lib/preferences"
+import {
   selectAgents,
   selectAgentTools,
   selectSourceRoot,
   selectInstallMode,
+  selectInstallationScope,
+  confirmInstallPlan,
   confirmAction,
 } from "../utils/prompts"
 import { success, error, info, formatAgentList, warn } from "../utils/output"
@@ -138,6 +146,7 @@ export async function addCommand(
       console.log(formatAgentList(agents))
       return
     }
+    const cachedPreferences = readInstallPreferences()
 
     // Determine which agents to install
     let agentsToInstall: AgentFile[]
@@ -162,24 +171,44 @@ export async function addCommand(
 
     // Determine target agent tools
     let targetTools: AgentTool[]
+    const allTools = getAllAgentTools()
     if (options.all || options.agent === "*") {
-      targetTools = getAllAgentTools()
+      targetTools = allTools
     } else if (options.agent) {
       const tools = options.agent.split(",").map((t) => t.trim()) as AgentTool[]
-      targetTools = tools.filter((t) => getAllAgentTools().includes(t))
+      targetTools = tools.filter((t) => allTools.includes(t))
       if (targetTools.length === 0) {
         error("Invalid agent tool specified")
         return
       }
     } else if (options.yes || options.all) {
-      targetTools = getAllAgentTools()
+      targetTools = allTools
     } else {
-      targetTools = await selectAgentTools(getAllAgentTools())
+      const defaultTools = cachedPreferences?.defaultTools?.filter((tool) =>
+        allTools.includes(tool)
+      )
+      targetTools = await selectAgentTools(
+        allTools,
+        defaultTools && defaultTools.length > 0 ? defaultTools : allTools
+      )
       if (targetTools.length === 0) {
         info("No agent tools selected")
         return
       }
     }
+
+    // Determine installation scope independently from selected tools and mode
+    let installScope: InstallScope
+    if (options.global) {
+      installScope = "global"
+    } else if (options.yes || options.all) {
+      installScope = "project"
+    } else {
+      installScope = await selectInstallationScope(
+        cachedPreferences?.defaultScope || "project"
+      )
+    }
+    const isGlobalInstall = installScope === "global"
 
     // Determine install mode independently from target tool selection
     let installMode: InstallMode
@@ -195,24 +224,62 @@ export async function addCommand(
     } else if (options.yes || options.all) {
       installMode = "symlink"
     } else {
-      installMode = await selectInstallMode()
+      installMode = await selectInstallMode(
+        cachedPreferences?.defaultMode || "symlink"
+      )
     }
 
     // Install agents
     const source = `${packageInfo.owner}/${packageInfo.repo}${
       packageInfo.ref ? `#${packageInfo.ref}` : ""
     }:${sourceRoot}`
-    const canonicalDir = getCanonicalAgentDir(options.global || false)
+    const canonicalDir = getCanonicalAgentDir(isGlobalInstall)
+    const scopeLabel = isGlobalInstall ? "global" : "project"
+
+    if (!options.yes && !options.all) {
+      const selectedAgentNames = agentsToInstall.map((agent) => agent.name)
+      const summarizedAgentNames =
+        selectedAgentNames.length > 5
+          ? `${selectedAgentNames.slice(0, 5).join(", ")} +${
+              selectedAgentNames.length - 5
+            } more`
+          : selectedAgentNames.join(", ")
+
+      const shouldProceed = await confirmInstallPlan([
+        `Source: ${source}`,
+        `Agents (${agentsToInstall.length}): ${summarizedAgentNames}`,
+        `Tools: ${targetTools.join(", ")}`,
+        `Scope: ${scopeLabel}`,
+        `Install mode: ${installMode}`,
+        `Canonical directory: ${canonicalDir}`,
+      ])
+
+      if (!shouldProceed) {
+        info("Installation cancelled")
+        return
+      }
+    }
 
     info(
       `Installing ${agentsToInstall.length} agent${
         agentsToInstall.length === 1 ? "" : "s"
       } using ${installMode} mode to ${targetTools.length} tool${
         targetTools.length === 1 ? "" : "s"
-      }...`
+      } (${scopeLabel} scope)...`
     )
 
     let installedCount = 0
+    let failedCount = 0
+    let skippedCount = 0
+    let canonicalFailureCount = 0
+    let canonicalSkippedCount = 0
+    const toolStats = new Map<
+      AgentTool,
+      { installed: number; failed: number; skipped: number }
+    >()
+    for (const tool of targetTools) {
+      toolStats.set(tool, { installed: 0, failed: 0, skipped: 0 })
+    }
 
     for (const agent of agentsToInstall) {
       const installPath = agent.installPath || path.basename(agent.path)
@@ -229,6 +296,14 @@ export async function addCommand(
         }
         if (!overwriteCanonical) {
           info(`Skipped canonical: ${installPath}`)
+          canonicalSkippedCount++
+          skippedCount += targetTools.length
+          for (const tool of targetTools) {
+            const stats = toolStats.get(tool)
+            if (stats) {
+              stats.skipped++
+            }
+          }
           continue
         }
 
@@ -246,11 +321,19 @@ export async function addCommand(
             err instanceof Error ? err.message : String(err)
           }`
         )
+        canonicalFailureCount++
+        failedCount += targetTools.length
+        for (const tool of targetTools) {
+          const stats = toolStats.get(tool)
+          if (stats) {
+            stats.failed++
+          }
+        }
         continue
       }
 
       for (const tool of targetTools) {
-        const targetDir = getAgentDirs(tool, options.global || false)
+        const targetDir = getAgentDirs(tool, isGlobalInstall)
         const targetPath = path.join(targetDir, installPath)
         try {
           let overwrite = true
@@ -261,6 +344,11 @@ export async function addCommand(
             )
             if (!overwrite) {
               info(`Skipped ${tool}: ${installPath}`)
+              skippedCount++
+              const stats = toolStats.get(tool)
+              if (stats) {
+                stats.skipped++
+              }
               continue
             }
           }
@@ -276,7 +364,16 @@ export async function addCommand(
           })
           success(`${agent.name} → ${targetDir}/${installPath}`)
           installedCount++
+          const stats = toolStats.get(tool)
+          if (stats) {
+            stats.installed++
+          }
         } catch (err) {
+          failedCount++
+          const stats = toolStats.get(tool)
+          if (stats) {
+            stats.failed++
+          }
           error(
             `Failed to install ${agent.name} to ${tool}: ${
               err instanceof Error ? err.message : String(err)
@@ -291,6 +388,38 @@ export async function addCommand(
         installedCount === 1 ? "" : "s"
       }.`
     )
+    info(`Summary: ${installedCount} installed, ${failedCount} failed, ${skippedCount} skipped.`)
+    for (const tool of targetTools) {
+      const stats = toolStats.get(tool)
+      if (!stats) {
+        continue
+      }
+      info(
+        `${tool}: ${stats.installed} installed, ${stats.failed} failed, ${stats.skipped} skipped`
+      )
+    }
+    if (canonicalFailureCount > 0 || canonicalSkippedCount > 0) {
+      info(
+        `Canonical: ${canonicalFailureCount} failed, ${canonicalSkippedCount} skipped`
+      )
+    }
+
+    if (installedCount > 0) {
+      try {
+        writeInstallPreferences({
+          defaultTools: targetTools,
+          defaultScope: installScope,
+          defaultMode: installMode,
+        })
+        info(`Saved install defaults to ${getPreferencesPath()}`)
+      } catch (err) {
+        warn(
+          `Could not save install defaults: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+      }
+    }
   } catch (err) {
     spinner.fail(err instanceof Error ? err.message : String(err))
     process.exit(1)
