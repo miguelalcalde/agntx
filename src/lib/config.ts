@@ -25,3 +25,9 @@ export function getAgentDirs(agent: AgentTool, global: boolean): string {
 export function getAllAgentTools(): AgentTool[] {
   return Object.keys(AGENT_TOOLS) as AgentTool[]
 }
+
+export function getCanonicalAgentDir(global: boolean): string {
+  return global
+    ? path.join(os.homedir(), ".agents", "agents")
+    : ".agents/agents"
+}

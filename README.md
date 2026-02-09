@@ -22,6 +22,9 @@ npx agntx add vercel-labs/agents
 npx agntx add vercel-labs/agents
 npx agntx add https://github.com/vercel-labs/agents
 npx agntx add vercel-labs/agents#main
+npx agntx add vercel-labs/agents --mode symlink
+npx agntx add vercel-labs/agents --mode copy
+npx agntx add vercel-labs/agents --no-symlink
 npx agntx https://github.com/vercel-labs/agents
 npx agntx https://github.com/ruvnet/claude-flow/.agents
 npx agntx https://github.com/ruvnet/claude-flow/.cursor
@@ -31,10 +34,33 @@ npx agntx https://github.com/ruvnet/claude-flow/.cursor
 - `-g, --global` - Install to user-level (`~/.<agent>/agents/`) instead of project-level
 - `-a, --agent <agents>` - Specify target agents: `cursor`, `claude`, `codex`, or `*` for all
 - `-s, --agent-file <names>` - Specify agent names to install (use `*` for all)
+- `--mode <symlink|copy>` - Install mode for tool directories (`symlink` recommended)
+- `--no-symlink` - Shortcut for `--mode copy`
 - `-l, --list` - List available agents in repo without installing
 - `-y, --yes` - Skip confirmation prompts
 - `-f, --force` - Overwrite existing installed files without prompting
 - `--all` - Shorthand for `--agent-file '*' --agent '*' -y`
+
+### Install Mode and Canonical Storage
+
+Install mode is independent from target tools.
+
+`agntx` always materializes selected agents in a canonical directory first, then installs to selected tools:
+
+- Project scope canonical dir: `.agents/agents/`
+- Global scope canonical dir: `~/.agents/agents/`
+
+In `symlink` mode (default on macOS/unix), tool files are symlinks to canonical files.
+In `copy` mode, tool files are copied from canonical files.
+
+Example (`cursor` only, project scope, `symlink` mode):
+
+```
+.agents/agents/my-agent.md       # real file
+.cursor/agents/my-agent.md       # symlink to canonical file
+```
+
+Note: symlink mode currently supports macOS/unix. Use `--mode copy` (or `--no-symlink`) otherwise.
 
 ### Source Directory Selection
 
@@ -138,6 +164,7 @@ Your agent's system prompt goes here.
 
 ### Project-level (current project only)
 ```
+.agents/agents/
 .cursor/agents/
 .claude/agents/
 .codex/agents/
@@ -145,6 +172,7 @@ Your agent's system prompt goes here.
 
 ### User-level (global, all projects)
 ```
+~/.agents/agents/
 ~/.cursor/agents/
 ~/.claude/agents/
 ~/.codex/agents/

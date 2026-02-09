@@ -7,13 +7,23 @@ import {
   findAvailableSourceRoots,
   STANDARD_SOURCE_ROOTS,
 } from "../lib/discover"
-import { installAgent } from "../lib/install"
+import {
+  installAgent,
+  materializeAgentFile,
+  type InstallMode,
+} from "../lib/install"
 import { AgentFile } from "../lib/parse"
-import { AgentTool, getAgentDirs, getAllAgentTools } from "../lib/config"
+import {
+  AgentTool,
+  getAgentDirs,
+  getAllAgentTools,
+  getCanonicalAgentDir,
+} from "../lib/config"
 import {
   selectAgents,
   selectAgentTools,
   selectSourceRoot,
+  selectInstallMode,
   confirmAction,
 } from "../utils/prompts"
 import { success, error, info, formatAgentList, warn } from "../utils/output"
@@ -26,6 +36,15 @@ export interface AddOptions {
   yes?: boolean
   force?: boolean
   all?: boolean
+  mode?: string
+  symlink?: boolean
+}
+
+function parseInstallMode(mode: string): InstallMode | null {
+  if (mode === "symlink" || mode === "copy") {
+    return mode
+  }
+  return null
 }
 
 export async function addCommand(
@@ -162,22 +181,76 @@ export async function addCommand(
       }
     }
 
+    // Determine install mode independently from target tool selection
+    let installMode: InstallMode
+    if (options.mode) {
+      const parsedMode = parseInstallMode(options.mode.toLowerCase())
+      if (!parsedMode) {
+        error(`Invalid install mode: ${options.mode}. Use "symlink" or "copy".`)
+        return
+      }
+      installMode = parsedMode
+    } else if (options.symlink === false) {
+      installMode = "copy"
+    } else if (options.yes || options.all) {
+      installMode = "symlink"
+    } else {
+      installMode = await selectInstallMode()
+    }
+
     // Install agents
     const source = `${packageInfo.owner}/${packageInfo.repo}${
       packageInfo.ref ? `#${packageInfo.ref}` : ""
     }:${sourceRoot}`
-    const useSymlink = false // Default to copying files
+    const canonicalDir = getCanonicalAgentDir(options.global || false)
 
     info(
       `Installing ${agentsToInstall.length} agent${
         agentsToInstall.length === 1 ? "" : "s"
-      } to ${targetTools.length} tool${targetTools.length === 1 ? "" : "s"}...`
+      } using ${installMode} mode to ${targetTools.length} tool${
+        targetTools.length === 1 ? "" : "s"
+      }...`
     )
 
+    let installedCount = 0
+
     for (const agent of agentsToInstall) {
+      const installPath = agent.installPath || path.basename(agent.path)
+      const sourcePath = path.join(repoPath, agent.path)
+      const canonicalPath = path.join(canonicalDir, installPath)
+
+      try {
+        let overwriteCanonical = true
+        if (fs.existsSync(canonicalPath) && !options.force && !options.yes) {
+          overwriteCanonical = await confirmAction(
+            `canonical: ${installPath} already exists. Overwrite?`,
+            false
+          )
+        }
+        if (!overwriteCanonical) {
+          info(`Skipped canonical: ${installPath}`)
+          continue
+        }
+
+        // Canonical files are always concrete files, never symlinks.
+        await materializeAgentFile(
+          sourcePath,
+          canonicalDir,
+          installPath,
+          "copy",
+          overwriteCanonical
+        )
+      } catch (err) {
+        error(
+          `Failed to materialize canonical file for ${agent.name}: ${
+            err instanceof Error ? err.message : String(err)
+          }`
+        )
+        continue
+      }
+
       for (const tool of targetTools) {
         const targetDir = getAgentDirs(tool, options.global || false)
-        const installPath = agent.installPath || path.basename(agent.path)
         const targetPath = path.join(targetDir, installPath)
         try {
           let overwrite = true
@@ -192,15 +265,17 @@ export async function addCommand(
             }
           }
 
-          await installAgent(
+          await installAgent({
             agent,
-            repoPath,
+            sourcePath: canonicalPath,
             targetDir,
             source,
-            useSymlink,
+            mode: installMode,
+            canonicalPath,
             overwrite
-          )
+          })
           success(`${agent.name} → ${targetDir}/${installPath}`)
+          installedCount++
         } catch (err) {
           error(
             `Failed to install ${agent.name} to ${tool}: ${
@@ -212,8 +287,8 @@ export async function addCommand(
     }
 
     success(
-      `Done! Installed ${agentsToInstall.length} agent${
-        agentsToInstall.length === 1 ? "" : "s"
+      `Done! Installed ${installedCount} agent file${
+        installedCount === 1 ? "" : "s"
       }.`
     )
   } catch (err) {

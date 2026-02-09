@@ -3,17 +3,40 @@ import * as path from "path"
 import { AgentFile } from "./parse"
 import { addAgentTracking, removeAgentTracking } from "./tracking"
 
-export async function installAgent(
-  agent: AgentFile,
-  sourceRepoPath: string,
+export type InstallMode = "copy" | "symlink"
+
+export interface InstallAgentParams {
+  agent: AgentFile
+  sourcePath: string
+  targetDir: string
+  source: string
+  mode: InstallMode
+  overwrite?: boolean
+  canonicalPath?: string
+}
+
+export function isSymlinkModeSupported(): boolean {
+  return process.platform !== "win32"
+}
+
+function assertInstallModeSupported(mode: InstallMode): void {
+  if (mode === "symlink" && !isSymlinkModeSupported()) {
+    throw new Error(
+      "Symlink mode is currently supported on macOS/unix only. Use --mode copy or --no-symlink."
+    )
+  }
+}
+
+export async function materializeAgentFile(
+  sourcePath: string,
   targetDir: string,
-  source: string,
-  useSymlink: boolean = false,
+  installPath: string,
+  mode: InstallMode,
   overwrite: boolean = true
 ): Promise<void> {
-  const installPath = agent.installPath || path.basename(agent.path)
+  assertInstallModeSupported(mode)
   const targetPath = path.join(targetDir, installPath)
-  const sourcePath = path.join(sourceRepoPath, agent.path)
+  const resolvedSourcePath = path.resolve(sourcePath)
 
   // Ensure target directory exists
   await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
@@ -26,16 +49,38 @@ export async function installAgent(
     await fs.promises.unlink(targetPath)
   }
 
-  if (useSymlink) {
-    // Create symlink
-    await fs.promises.symlink(sourcePath, targetPath)
+  if (mode === "symlink") {
+    const linkTarget = path.relative(path.dirname(targetPath), resolvedSourcePath)
+    await fs.promises.symlink(linkTarget, targetPath)
   } else {
-    // Copy file
-    await fs.promises.copyFile(sourcePath, targetPath)
+    await fs.promises.copyFile(resolvedSourcePath, targetPath)
   }
+}
+
+export async function installAgent({
+  agent,
+  sourcePath,
+  targetDir,
+  source,
+  mode,
+  overwrite = true,
+  canonicalPath,
+}: InstallAgentParams): Promise<void> {
+  const installPath = agent.installPath || path.basename(agent.path)
+
+  await materializeAgentFile(sourcePath, targetDir, installPath, mode, overwrite)
 
   // Update tracking
-  addAgentTracking(targetDir, agent.name, source, useSymlink, agent.path, installPath)
+  addAgentTracking(
+    targetDir,
+    agent.name,
+    source,
+    mode === "symlink",
+    agent.path,
+    installPath,
+    mode,
+    canonicalPath ? path.resolve(canonicalPath) : undefined
+  )
 }
 
 export async function uninstallAgent(

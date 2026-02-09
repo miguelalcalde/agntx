@@ -20,7 +20,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
     const scope = options.global ? "Global" : "Project"
     const agentsByTool: Record<
       AgentTool,
-      Array<{ name: string; description?: string }>
+      Array<{ name: string; mode: "symlink" | "copy"; description?: string }>
     > = {
       cursor: [],
       claude: [],
@@ -50,7 +50,11 @@ export async function listCommand(options: ListOptions): Promise<void> {
               // Ignore errors reading description
             }
           }
-          agentsByTool[tool].push({ name: info.name, description })
+          agentsByTool[tool].push({
+            name: info.name,
+            mode: info.mode || (info.symlink ? "symlink" : "copy"),
+            description,
+          })
         }
       }
     }
@@ -66,7 +70,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
         console.log(`  ${chalk.cyan(tool)}:`)
         for (const agent of agents) {
           const desc = agent.description ? `    ${agent.description}` : ""
-          console.log(`    ${agent.name}${desc}`)
+          console.log(`    ${agent.name} [${agent.mode}]${desc}`)
         }
       }
     }

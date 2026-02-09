@@ -7,6 +7,8 @@ export interface InstalledAgent {
   version?: string
   installedAt: string
   symlink: boolean
+  mode?: "symlink" | "copy"
+  canonicalPath?: string
   path: string // relative path in source repo
   installedPath: string // relative path in target agent dir
 }
@@ -35,10 +37,16 @@ export function readTracking(agentDir: string): TrackingData {
 
     // Backward compatibility: old keys were agent names with flat files.
     for (const [key, value] of Object.entries(parsed.agents || {})) {
-      normalized.agents[value.installedPath || `${key}.md`] = {
+      const installedPath = value.installedPath || `${key}.md`
+      const mode = value.mode || (value.symlink ? "symlink" : "copy")
+
+      normalized.agents[installedPath] = {
         ...value,
-        name: value.name || key,
-        installedPath: value.installedPath || `${key}.md`,
+        name: value.name || path.basename(installedPath, ".md"),
+        symlink: value.symlink ?? mode === "symlink",
+        mode,
+        canonicalPath: value.canonicalPath,
+        installedPath,
       }
     }
 
@@ -63,7 +71,9 @@ export function addAgentTracking(
   source: string,
   symlink: boolean,
   agentPath: string,
-  installedPath: string
+  installedPath: string,
+  mode?: "symlink" | "copy",
+  canonicalPath?: string
 ): void {
   const tracking = readTracking(agentDir)
 
@@ -72,6 +82,8 @@ export function addAgentTracking(
     source,
     installedAt: new Date().toISOString(),
     symlink,
+    mode: mode || (symlink ? "symlink" : "copy"),
+    canonicalPath,
     path: agentPath,
     installedPath,
   }

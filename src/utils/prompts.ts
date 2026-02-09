@@ -1,6 +1,7 @@
 import inquirer from "inquirer"
 import { AgentFile } from "../lib/parse"
 import { AgentTool } from "../lib/config"
+import type { InstallMode } from "../lib/install"
 
 export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
   const choices = agents.map((agent) => ({
@@ -96,6 +97,23 @@ export async function selectSourceRoot(sourceRoots: string[]): Promise<string> {
       name: "selected",
       message: "Multiple source directories found. Select one:",
       choices: sourceRoots.map((root) => ({ name: root, value: root })),
+    },
+  ])
+
+  return selected
+}
+
+export async function selectInstallMode(): Promise<InstallMode> {
+  const { selected } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "selected",
+      message: "Select install mode:",
+      choices: [
+        { name: "symlink (recommended)", value: "symlink" },
+        { name: "copy", value: "copy" },
+      ],
+      default: "symlink",
     },
   ])
 

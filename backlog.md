@@ -4,3 +4,6 @@
 - [ ] publish first version of agntx
 - [ ] Define policy to handle duplicate files encountered accross directories. suffix with names?
 - [ ] Ensure the CLI provides the symlink options.
+- [ ] Refine UI: 
+  - [ ] The agent information is too packed with the description and all, we need to figure a way to unpack it. (maybe interactively show more info)
+  - [ ] we need more agents to fit the list (maybe problem above)

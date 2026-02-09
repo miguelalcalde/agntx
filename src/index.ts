@@ -35,6 +35,11 @@ program
     "-s, --agent-file <names>",
     "Specify agent names to install (use * for all)"
   )
+  .option(
+    "--mode <mode>",
+    "Install mode: symlink (recommended) or copy"
+  )
+  .option("--no-symlink", "Disable symlink mode and copy files instead")
   .option("-l, --list", "List available agents in repo without installing")
   .option("-y, --yes", "Skip confirmation prompts")
   .option("-f, --force", "Overwrite existing installed files without prompting")
