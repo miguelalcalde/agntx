@@ -1,22 +1,69 @@
 import inquirer from "inquirer"
+import chalk from "chalk"
 import { AgentFile } from "../lib/parse"
 import { AgentTool } from "../lib/config"
 import type { InstallMode } from "../lib/install"
 import type { InstallScope } from "../lib/preferences"
 
+function truncateText(value: string, maxLength: number): string {
+  if (maxLength <= 0) {
+    return ""
+  }
+  if (value.length <= maxLength) {
+    return value
+  }
+  if (maxLength <= 3) {
+    return value.slice(0, maxLength)
+  }
+  return `${value.slice(0, maxLength - 3)}...`
+}
+
+function compactWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function getAgentBadges(agent: AgentFile): string[] {
+  const badges: string[] = []
+  if (agent.model && agent.model !== "inherit") {
+    badges.push(`[${agent.model}]`)
+  }
+  if (agent.readonly) {
+    badges.push("[RO]")
+  }
+  if (agent.is_background) {
+    badges.push("[BG]")
+  }
+  return badges
+}
+
+function formatAgentChoiceLine(agent: AgentFile): string {
+  const width = Math.max(process.stdout.columns || 100, 80)
+  const nameWidth = Math.max(18, Math.min(30, Math.floor(width * 0.24)))
+  const badges = getAgentBadges(agent)
+  const badgeText = badges.length > 0 ? ` ${badges.join(" ")}` : ""
+  const desc = compactWhitespace(agent.description || "No description")
+
+  // Reserve room for inquirer cursor/checkbox and minimal spacing.
+  const contentWidth = Math.max(width - 18, 40)
+  const descWidth = Math.max(contentWidth - nameWidth - badgeText.length - 2, 12)
+
+  const compactName = truncateText(agent.name, nameWidth).padEnd(nameWidth, " ")
+  const compactDesc = truncateText(desc, descWidth)
+
+  return `${compactName} ${compactDesc}${badgeText}`
+}
+
 export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
+  const pageSize = Math.min(Math.max(agents.length + 2, 8), 20)
   const choices = agents.map((agent) => {
     const choice: {
       name: string
       value: AgentFile
       short?: string
     } = {
-      name: agent.name,
+      name: `${chalk.dim("│")} ${formatAgentChoiceLine(agent)}`,
       value: agent,
-    }
-
-    if (agent.description) {
-      choice.short = `${agent.name} - ${agent.description}`
+      short: agent.name,
     }
 
     return choice
@@ -26,9 +73,12 @@ export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
     {
       type: "checkbox",
       name: "selected",
-      message: "Select agents to install:",
+      prefix: chalk.dim("│"),
+      message: `${chalk.cyan("◆")} Select agents to install ${chalk.dim(
+        "(space to toggle)"
+      )}`,
       choices,
-      pageSize: 20,
+      pageSize,
     },
   ])
 
