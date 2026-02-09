@@ -18,6 +18,8 @@ program
   )
   .version("1.0.1")
 
+program.argument("[package]", "GitHub repository URL or package identifier")
+
 program
   .command("add <package>")
   .description("Install agents from a GitHub repository")
@@ -35,6 +37,7 @@ program
   )
   .option("-l, --list", "List available agents in repo without installing")
   .option("-y, --yes", "Skip confirmation prompts")
+  .option("-f, --force", "Overwrite existing installed files without prompting")
   .option("--all", 'Shorthand for --agent-file "*" --agent "*" -y')
   .action(async (packageInput: string, options) => {
     await addCommand(packageInput, options)
@@ -90,5 +93,13 @@ program
   .action(async () => {
     await updateCommand()
   })
+
+program.action(async (packageInput: string | undefined) => {
+  if (packageInput) {
+    await addCommand(packageInput, {})
+  } else {
+    program.help()
+  }
+})
 
 program.parse()

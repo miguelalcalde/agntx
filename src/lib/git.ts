@@ -7,6 +7,13 @@ export interface PackageInfo {
   owner: string
   repo: string
   ref?: string
+  sourceRoot?: string
+}
+
+const SOURCE_ROOT_ALIASES: Record<string, string> = {
+  ".agents": ".agents/agents",
+  ".cursor": ".cursor/agents",
+  ".claude": ".claude/agents",
 }
 
 export function resolvePackage(input: string): PackageInfo {
@@ -21,6 +28,7 @@ export function resolvePackage(input: string): PackageInfo {
   let owner: string
   let repo: string
   let ref: string | undefined
+  let sourceRoot: string | undefined
 
   // Extract ref if present
   const refMatch = input.match(/#(.+)$/)
@@ -30,17 +38,46 @@ export function resolvePackage(input: string): PackageInfo {
   }
 
   // Handle GitHub shorthand
-  if (/^[^\/]+\/[^\/]+$/.test(input)) {
-    ;[owner, repo] = input.split("/")
+  if (/^[^\/]+\/[^\/]+(?:\/\.[^\/]+)?$/.test(input)) {
+    const segments = input.split("/")
+    owner = segments[0]
+    repo = segments[1]
+    const sourceAlias = segments[2]
+    if (sourceAlias) {
+      sourceRoot = SOURCE_ROOT_ALIASES[sourceAlias]
+      if (!sourceRoot) {
+        throw new Error(`Unsupported source namespace: ${sourceAlias}`)
+      }
+    }
   }
   // Handle GitHub URLs
   else if (input.includes("github.com")) {
-    const match = input.match(/github\.com[/:]([^\/]+)\/([^\/]+?)(?:\.git)?$/)
-    if (match) {
-      owner = match[1]
-      repo = match[2]
+    if (input.startsWith("http://") || input.startsWith("https://")) {
+      const url = new URL(input)
+      const segments = url.pathname.split("/").filter(Boolean)
+
+      if (segments.length < 2) {
+        throw new Error(`Invalid GitHub URL: ${input}`)
+      }
+
+      owner = segments[0]
+      repo = segments[1].replace(/\.git$/, "")
+
+      if (segments.length >= 3) {
+        const sourceAlias = segments[2]
+        sourceRoot = SOURCE_ROOT_ALIASES[sourceAlias]
+        if (!sourceRoot) {
+          throw new Error(`Unsupported source namespace: ${sourceAlias}`)
+        }
+      }
     } else {
-      throw new Error(`Invalid GitHub URL: ${input}`)
+      const match = input.match(/github\.com[/:]([^\/]+)\/([^\/]+?)(?:\.git)?$/)
+      if (match) {
+        owner = match[1]
+        repo = match[2]
+      } else {
+        throw new Error(`Invalid GitHub URL: ${input}`)
+      }
     }
   }
   // Handle git@ URLs
@@ -56,7 +93,7 @@ export function resolvePackage(input: string): PackageInfo {
     throw new Error(`Invalid package identifier: ${input}`)
   }
 
-  return { owner, repo, ref }
+  return { owner, repo, ref, sourceRoot }
 }
 
 export async function cloneOrFetchRepo(

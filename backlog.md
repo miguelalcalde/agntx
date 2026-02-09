@@ -2,3 +2,5 @@
 - [x] ensure the structure is correct.
 - [x] test the package -- build + smoke test pass
 - [ ] publish first version of agntx
+- [ ] Define policy to handle duplicate files encountered accross directories. suffix with names?
+- [ ] Ensure the CLI provides the symlink options.

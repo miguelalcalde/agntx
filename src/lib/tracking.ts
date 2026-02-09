@@ -2,11 +2,13 @@ import * as fs from "fs"
 import * as path from "path"
 
 export interface InstalledAgent {
+  name: string
   source: string
   version?: string
   installedAt: string
   symlink: boolean
   path: string // relative path in source repo
+  installedPath: string // relative path in target agent dir
 }
 
 export interface TrackingData {
@@ -28,7 +30,19 @@ export function readTracking(agentDir: string): TrackingData {
 
   try {
     const content = fs.readFileSync(trackingPath, "utf-8")
-    return JSON.parse(content)
+    const parsed = JSON.parse(content) as TrackingData
+    const normalized: TrackingData = { agents: {} }
+
+    // Backward compatibility: old keys were agent names with flat files.
+    for (const [key, value] of Object.entries(parsed.agents || {})) {
+      normalized.agents[value.installedPath || `${key}.md`] = {
+        ...value,
+        name: value.name || key,
+        installedPath: value.installedPath || `${key}.md`,
+      }
+    }
+
+    return normalized
   } catch (error) {
     return { agents: {} }
   }
@@ -48,23 +62,26 @@ export function addAgentTracking(
   agentName: string,
   source: string,
   symlink: boolean,
-  agentPath: string
+  agentPath: string,
+  installedPath: string
 ): void {
   const tracking = readTracking(agentDir)
 
-  tracking.agents[agentName] = {
+  tracking.agents[installedPath] = {
+    name: agentName,
     source,
     installedAt: new Date().toISOString(),
     symlink,
     path: agentPath,
+    installedPath,
   }
 
   writeTracking(agentDir, tracking)
 }
 
-export function removeAgentTracking(agentDir: string, agentName: string): void {
+export function removeAgentTracking(agentDir: string, installedPath: string): void {
   const tracking = readTracking(agentDir)
-  delete tracking.agents[agentName]
+  delete tracking.agents[installedPath]
   writeTracking(agentDir, tracking)
 }
 

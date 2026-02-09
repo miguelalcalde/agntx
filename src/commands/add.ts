@@ -1,12 +1,22 @@
 import * as path from "path"
+import * as fs from "fs"
 import ora from "ora"
 import { resolvePackage, cloneOrFetchRepo } from "../lib/git"
-import { discoverAgents } from "../lib/discover"
+import {
+  discoverAgents,
+  findAvailableSourceRoots,
+  STANDARD_SOURCE_ROOTS,
+} from "../lib/discover"
 import { installAgent } from "../lib/install"
 import { AgentFile } from "../lib/parse"
 import { AgentTool, getAgentDirs, getAllAgentTools } from "../lib/config"
-import { selectAgents, selectAgentTools } from "../utils/prompts"
-import { success, error, info, formatAgentList } from "../utils/output"
+import {
+  selectAgents,
+  selectAgentTools,
+  selectSourceRoot,
+  confirmAction,
+} from "../utils/prompts"
+import { success, error, info, formatAgentList, warn } from "../utils/output"
 
 export interface AddOptions {
   global?: boolean
@@ -14,6 +24,7 @@ export interface AddOptions {
   agentFile?: string
   list?: boolean
   yes?: boolean
+  force?: boolean
   all?: boolean
 }
 
@@ -33,8 +44,47 @@ export async function addCommand(
 
     spinner.text = "Discovering agents..."
 
-    // Discover agents
-    const agents = await discoverAgents(repoPath)
+    // Resolve source directory
+    const availableSourceRoots = findAvailableSourceRoots(repoPath)
+    let sourceRoot: string
+
+    if (packageInfo.sourceRoot) {
+      sourceRoot = packageInfo.sourceRoot
+      if (!availableSourceRoots.includes(sourceRoot)) {
+        spinner.fail(`Source directory not found: ${sourceRoot}`)
+        warn(
+          `Available source directories: ${
+            availableSourceRoots.length > 0
+              ? availableSourceRoots.join(", ")
+              : STANDARD_SOURCE_ROOTS.join(", ")
+          }`
+        )
+        process.exit(1)
+      }
+    } else {
+      if (availableSourceRoots.length === 0) {
+        spinner.fail("No standard agent source directories found")
+        warn(`Expected one of: ${STANDARD_SOURCE_ROOTS.join(", ")}`)
+        process.exit(1)
+      }
+
+      if (availableSourceRoots.length === 1) {
+        sourceRoot = availableSourceRoots[0]
+      } else if (options.yes) {
+        spinner.fail("Multiple source directories found")
+        warn(
+          "Use a suffixed GitHub URL (/.agents, /.cursor, /.claude) to select one source directory."
+        )
+        process.exit(1)
+      } else {
+        spinner.stop()
+        sourceRoot = await selectSourceRoot(availableSourceRoots)
+        spinner.start("Discovering agents...")
+      }
+    }
+
+    // Discover agents from selected source directory only
+    const agents = await discoverAgents(repoPath, sourceRoot)
 
     if (agents.length === 0) {
       spinner.fail("No agents found in repository")
@@ -42,8 +92,26 @@ export async function addCommand(
     }
 
     spinner.succeed(
-      `Found ${agents.length} agent${agents.length === 1 ? "" : "s"}`
+      `Found ${agents.length} agent${
+        agents.length === 1 ? "" : "s"
+      } in ${sourceRoot}`
     )
+
+    // Warn on duplicate names in the selected source directory
+    const nameCounts = new Map<string, number>()
+    for (const agent of agents) {
+      nameCounts.set(agent.name, (nameCounts.get(agent.name) || 0) + 1)
+    }
+    const duplicateNames = [...nameCounts.entries()]
+      .filter(([, count]) => count > 1)
+      .map(([name]) => name)
+    if (duplicateNames.length > 0) {
+      warn(
+        `Duplicate agent names found in source directory: ${duplicateNames.join(
+          ", "
+        )}`
+      )
+    }
 
     // List mode
     if (options.list) {
@@ -97,7 +165,7 @@ export async function addCommand(
     // Install agents
     const source = `${packageInfo.owner}/${packageInfo.repo}${
       packageInfo.ref ? `#${packageInfo.ref}` : ""
-    }`
+    }:${sourceRoot}`
     const useSymlink = false // Default to copying files
 
     info(
@@ -109,9 +177,30 @@ export async function addCommand(
     for (const agent of agentsToInstall) {
       for (const tool of targetTools) {
         const targetDir = getAgentDirs(tool, options.global || false)
+        const installPath = agent.installPath || path.basename(agent.path)
+        const targetPath = path.join(targetDir, installPath)
         try {
-          await installAgent(agent, repoPath, targetDir, source, useSymlink)
-          success(`${agent.name} → ${targetDir}/${agent.name}.md`)
+          let overwrite = true
+          if (fs.existsSync(targetPath) && !options.force && !options.yes) {
+            overwrite = await confirmAction(
+              `${tool}: ${installPath} already exists. Overwrite?`,
+              false
+            )
+            if (!overwrite) {
+              info(`Skipped ${tool}: ${installPath}`)
+              continue
+            }
+          }
+
+          await installAgent(
+            agent,
+            repoPath,
+            targetDir,
+            source,
+            useSymlink,
+            overwrite
+          )
+          success(`${agent.name} → ${targetDir}/${installPath}`)
         } catch (err) {
           error(
             `Failed to install ${agent.name} to ${tool}: ${

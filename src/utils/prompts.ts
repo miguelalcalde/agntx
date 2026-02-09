@@ -88,3 +88,16 @@ export async function searchQuery(): Promise<string> {
 
   return query
 }
+
+export async function selectSourceRoot(sourceRoots: string[]): Promise<string> {
+  const { selected } = await inquirer.prompt([
+    {
+      type: "list",
+      name: "selected",
+      message: "Multiple source directories found. Select one:",
+      choices: sourceRoots.map((root) => ({ name: root, value: root })),
+    },
+  ])
+
+  return selected
+}

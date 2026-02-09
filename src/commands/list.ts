@@ -1,4 +1,5 @@
 import * as fs from "fs"
+import * as path from "path"
 import chalk from "chalk"
 import { getAgentDirs, getAllAgentTools, AgentTool } from "../lib/config"
 import { getInstalledAgents } from "../lib/tracking"
@@ -30,10 +31,10 @@ export async function listCommand(options: ListOptions): Promise<void> {
       const agentDir = getAgentDirs(tool, options.global || false)
       if (fs.existsSync(agentDir)) {
         const installed = getInstalledAgents(agentDir)
-        for (const [name, info] of Object.entries(installed)) {
+        for (const [installedPath, info] of Object.entries(installed)) {
           // Try to read description from the agent file
           let description: string | undefined
-          const agentPath = `${agentDir}/${name}.md`
+          const agentPath = path.join(agentDir, info.installedPath || installedPath)
           if (fs.existsSync(agentPath)) {
             try {
               const content = fs.readFileSync(agentPath, "utf-8")
@@ -49,7 +50,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
               // Ignore errors reading description
             }
           }
-          agentsByTool[tool].push({ name, description })
+          agentsByTool[tool].push({ name: info.name, description })
         }
       }
     }

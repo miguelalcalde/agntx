@@ -1,7 +1,6 @@
 import * as fs from "fs"
-import * as path from "path"
 import { getAgentDirs, getAllAgentTools, AgentTool } from "../lib/config"
-import { getInstalledAgents, removeAgentTracking } from "../lib/tracking"
+import { getInstalledAgents } from "../lib/tracking"
 import { uninstallAgent } from "../lib/install"
 import { selectAgentsToRemove, confirmAction } from "../utils/prompts"
 import { success, error, info } from "../utils/output"
@@ -37,6 +36,7 @@ export async function removeCommand(
     // Collect all installed agents
     const allInstalledAgents: Array<{
       name: string
+      installedPath: string
       tool: AgentTool
       dir: string
     }> = []
@@ -45,8 +45,13 @@ export async function removeCommand(
       const agentDir = getAgentDirs(tool, options.global || false)
       if (fs.existsSync(agentDir)) {
         const installed = getInstalledAgents(agentDir)
-        for (const name of Object.keys(installed)) {
-          allInstalledAgents.push({ name, tool, dir: agentDir })
+        for (const [installedPath, installedAgent] of Object.entries(installed)) {
+          allInstalledAgents.push({
+            name: installedAgent.name,
+            installedPath: installedAgent.installedPath || installedPath,
+            tool,
+            dir: agentDir,
+          })
         }
       }
     }
@@ -57,28 +62,37 @@ export async function removeCommand(
     }
 
     // Determine which agents to remove
-    let agentsToRemove: string[]
+    let selectedNames: string[]
     if (options.all) {
-      agentsToRemove = [...new Set(allInstalledAgents.map((a) => a.name))]
+      selectedNames = [...new Set(allInstalledAgents.map((a) => a.name))]
     } else if (options.agentFile) {
       const names = options.agentFile.split(",").map((n) => n.trim())
-      agentsToRemove = names
+      selectedNames = names
     } else if (agentNames.length > 0) {
-      agentsToRemove = agentNames
+      selectedNames = agentNames
     } else {
       const uniqueNames = [...new Set(allInstalledAgents.map((a) => a.name))]
-      agentsToRemove = await selectAgentsToRemove(uniqueNames)
-      if (agentsToRemove.length === 0) {
+      selectedNames = await selectAgentsToRemove(uniqueNames)
+      if (selectedNames.length === 0) {
         info("No agents selected")
         return
       }
     }
 
+    const entriesToRemove = options.all
+      ? allInstalledAgents
+      : allInstalledAgents.filter((entry) => selectedNames.includes(entry.name))
+
+    if (entriesToRemove.length === 0) {
+      info("No matching installed agents found")
+      return
+    }
+
     // Confirm removal
     if (!options.yes && !options.all) {
       const confirmed = await confirmAction(
-        `Remove ${agentsToRemove.length} agent${
-          agentsToRemove.length === 1 ? "" : "s"
+        `Remove ${entriesToRemove.length} installed agent file${
+          entriesToRemove.length === 1 ? "" : "s"
         }?`,
         false
       )
@@ -90,14 +104,11 @@ export async function removeCommand(
 
     // Remove agents
     let removedCount = 0
-    for (const agentName of agentsToRemove) {
-      for (const tool of targetTools) {
-        const agentDir = getAgentDirs(tool, options.global || false)
-        const removed = await uninstallAgent(agentName, agentDir)
-        if (removed) {
-          success(`Removed ${agentName} from ${tool}`)
-          removedCount++
-        }
+    for (const entry of entriesToRemove) {
+      const removed = await uninstallAgent(entry.installedPath, entry.dir)
+      if (removed) {
+        success(`Removed ${entry.name} from ${entry.tool} (${entry.installedPath})`)
+        removedCount++
       }
     }
 

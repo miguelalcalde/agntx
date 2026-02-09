@@ -8,16 +8,21 @@ export async function installAgent(
   sourceRepoPath: string,
   targetDir: string,
   source: string,
-  useSymlink: boolean = false
+  useSymlink: boolean = false,
+  overwrite: boolean = true
 ): Promise<void> {
-  const targetPath = path.join(targetDir, `${agent.name}.md`)
+  const installPath = agent.installPath || path.basename(agent.path)
+  const targetPath = path.join(targetDir, installPath)
   const sourcePath = path.join(sourceRepoPath, agent.path)
 
   // Ensure target directory exists
-  await fs.promises.mkdir(targetDir, { recursive: true })
+  await fs.promises.mkdir(path.dirname(targetPath), { recursive: true })
 
   // Remove existing file if it exists
   if (fs.existsSync(targetPath)) {
+    if (!overwrite) {
+      throw new Error(`Target exists: ${installPath}`)
+    }
     await fs.promises.unlink(targetPath)
   }
 
@@ -30,14 +35,14 @@ export async function installAgent(
   }
 
   // Update tracking
-  addAgentTracking(targetDir, agent.name, source, useSymlink, agent.path)
+  addAgentTracking(targetDir, agent.name, source, useSymlink, agent.path, installPath)
 }
 
 export async function uninstallAgent(
-  agentName: string,
+  installedPath: string,
   targetDir: string
 ): Promise<boolean> {
-  const targetPath = path.join(targetDir, `${agentName}.md`)
+  const targetPath = path.join(targetDir, installedPath)
 
   if (!fs.existsSync(targetPath)) {
     return false
@@ -47,7 +52,7 @@ export async function uninstallAgent(
   await fs.promises.unlink(targetPath)
 
   // Update tracking
-  removeAgentTracking(targetDir, agentName)
+  removeAgentTracking(targetDir, installedPath)
 
   return true
 }

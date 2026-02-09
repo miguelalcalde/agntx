@@ -4,6 +4,8 @@ import matter from "gray-matter"
 
 export interface AgentFile {
   path: string // relative path in repo
+  sourceRoot?: string // selected source root in repo
+  installPath?: string // relative path under selected source root
   name: string // from frontmatter or filename
   description?: string
   model?: string

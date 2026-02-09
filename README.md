@@ -22,6 +22,9 @@ npx agntx add vercel-labs/agents
 npx agntx add vercel-labs/agents
 npx agntx add https://github.com/vercel-labs/agents
 npx agntx add vercel-labs/agents#main
+npx agntx https://github.com/vercel-labs/agents
+npx agntx https://github.com/ruvnet/claude-flow/.agents
+npx agntx https://github.com/ruvnet/claude-flow/.cursor
 ```
 
 **Options:**
@@ -30,7 +33,27 @@ npx agntx add vercel-labs/agents#main
 - `-s, --agent-file <names>` - Specify agent names to install (use `*` for all)
 - `-l, --list` - List available agents in repo without installing
 - `-y, --yes` - Skip confirmation prompts
+- `-f, --force` - Overwrite existing installed files without prompting
 - `--all` - Shorthand for `--agent-file '*' --agent '*' -y`
+
+### Source Directory Selection
+
+By default, `agntx` only discovers agents in these source directories:
+
+- `.agents/agents`
+- `.cursor/agents`
+- `.claude/agents`
+
+If multiple directories are found, you'll be prompted to select one.
+You can also select one directly in the GitHub URL suffix:
+
+- `https://github.com/<owner>/<repo>/.agents` -> `.agents/agents`
+- `https://github.com/<owner>/<repo>/.cursor` -> `.cursor/agents`
+- `https://github.com/<owner>/<repo>/.claude` -> `.claude/agents`
+
+If none of the standard source directories exist, install exits with a warning.
+
+Installed agents preserve the source directory structure and original filenames.
 
 ### Remove agents
 
