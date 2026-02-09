@@ -6,6 +6,10 @@
   "bin": {
     "agntx": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "prepublishOnly": "pnpm run build",
