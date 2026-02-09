@@ -1,0 +1,44 @@
+{
+  "name": "agntx",
+  "version": "1.0.0",
+  "description": "A CLI to install agent definitions from GitHub repositories into local agent directories",
+  "main": "dist/index.js",
+  "bin": {
+    "agntx": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "pnpm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "agent",
+    "cli",
+    "cursor",
+    "claude",
+    "codex"
+  ],
+  "author": "mikemajara",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/miguelalcalde/agntx.git"
+  },
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^14.0.3",
+    "glob": "^11.0.2",
+    "gray-matter": "^4.0.3",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "simple-git": "^3.30.0"
+  },
+  "devDependencies": {
+    "@types/inquirer": "^8.2.10",
+    "@types/node": "^22.15.0",
+    "typescript": "^5.9.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

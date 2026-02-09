@@ -1,0 +1,4 @@
+- [x] fix the name? -- already aligned on `agntx` everywhere
+- [x] ensure the structure is correct.
+- [x] test the package -- build + smoke test pass
+- [ ] publish first version of agntx
