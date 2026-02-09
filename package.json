@@ -1,10 +1,10 @@
 {
   "name": "agntx",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A CLI to install agent definitions from GitHub repositories into local agent directories",
   "main": "dist/index.js",
   "bin": {
-    "agntx": "./dist/index.js"
+    "agntx": "dist/index.js"
   },
   "files": [
     "dist",
@@ -26,7 +26,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/miguelalcalde/agntx.git"
+    "url": "git+https://github.com/miguelalcalde/agntx.git"
   },
   "dependencies": {
     "chalk": "^4.1.2",
