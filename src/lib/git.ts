@@ -16,6 +16,159 @@ const SOURCE_ROOT_ALIASES: Record<string, string> = {
   ".claude": ".claude/agents",
 }
 
+function normalizeSparsePaths(paths: string[]): string[] {
+  const uniquePaths = new Set<string>()
+
+  for (const sparsePath of paths) {
+    const normalized = sparsePath
+      .trim()
+      .replace(/\\/g, "/")
+      .replace(/^\/+/, "")
+      .replace(/\/+$/, "")
+    if (normalized.length > 0) {
+      uniquePaths.add(normalized)
+    }
+  }
+
+  return [...uniquePaths]
+}
+
+async function applySparseCheckout(
+  repoGit: SimpleGit,
+  sparsePaths: string[]
+): Promise<void> {
+  if (sparsePaths.length === 0) {
+    return
+  }
+
+  await repoGit.raw(["sparse-checkout", "init", "--no-cone"])
+  await repoGit.raw(["sparse-checkout", "set", "--no-cone", ...sparsePaths])
+}
+
+async function checkoutDefaultBranch(repoGit: SimpleGit): Promise<void> {
+  const candidates: string[] = []
+
+  try {
+    const originHead = (
+      await repoGit.raw(["symbolic-ref", "--short", "refs/remotes/origin/HEAD"])
+    ).trim()
+    if (originHead.startsWith("origin/")) {
+      candidates.push(originHead.replace(/^origin\//, ""))
+    } else if (originHead.length > 0) {
+      candidates.push(originHead)
+    }
+  } catch (error) {
+    // Fallback candidates below.
+  }
+
+  candidates.push("main", "master")
+
+  for (const candidate of [...new Set(candidates)]) {
+    try {
+      await repoGit.checkout(candidate)
+      return
+    } catch (error) {
+      // Try next candidate branch.
+    }
+  }
+
+  // Last resort: checkout HEAD in detached mode.
+  await repoGit.checkout("HEAD")
+}
+
+async function cloneOrFetchRepoFull(
+  packageInfo: PackageInfo,
+  forceFreshClone: boolean = false
+): Promise<string> {
+  const tempDir = path.join(
+    os.tmpdir(),
+    "agntx",
+    `${packageInfo.owner}-${packageInfo.repo}`
+  )
+  const repoUrl = `https://github.com/${packageInfo.owner}/${packageInfo.repo}.git`
+  const git: SimpleGit = simpleGit()
+
+  if (forceFreshClone && fs.existsSync(tempDir)) {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+  }
+
+  // Check if directory exists and is a git repo
+  const isRepo =
+    fs.existsSync(tempDir) && fs.existsSync(path.join(tempDir, ".git"))
+
+  if (isRepo) {
+    // Fetch latest changes in existing repo
+    const repoGit = simpleGit(tempDir)
+    await repoGit.fetch()
+    if (packageInfo.ref) {
+      await repoGit.checkout(packageInfo.ref)
+    } else {
+      await repoGit.pull()
+    }
+  } else {
+    // Remove directory if it exists but is not a repo
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+
+    // Clone the repo
+    await git.clone(repoUrl, tempDir)
+
+    // Checkout specific ref if provided
+    if (packageInfo.ref) {
+      const repoGit = simpleGit(tempDir)
+      await repoGit.checkout(packageInfo.ref)
+    }
+  }
+
+  return tempDir
+}
+
+async function cloneOrFetchRepoSparse(
+  packageInfo: PackageInfo,
+  sparsePaths: string[]
+): Promise<string> {
+  const tempDir = path.join(
+    os.tmpdir(),
+    "agntx",
+    `${packageInfo.owner}-${packageInfo.repo}`
+  )
+  const repoUrl = `https://github.com/${packageInfo.owner}/${packageInfo.repo}.git`
+  const git: SimpleGit = simpleGit()
+
+  // Check if directory exists and is a git repo
+  const isRepo =
+    fs.existsSync(tempDir) && fs.existsSync(path.join(tempDir, ".git"))
+
+  if (isRepo) {
+    const repoGit = simpleGit(tempDir)
+    await repoGit.fetch()
+    await applySparseCheckout(repoGit, sparsePaths)
+    if (packageInfo.ref) {
+      await repoGit.checkout(packageInfo.ref)
+    } else {
+      await repoGit.pull()
+    }
+  } else {
+    if (fs.existsSync(tempDir)) {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
+
+    // Partial clone without checkout; sparse paths are applied first.
+    await git.clone(repoUrl, tempDir, ["--filter=blob:none", "--no-checkout"])
+    const repoGit = simpleGit(tempDir)
+
+    await applySparseCheckout(repoGit, sparsePaths)
+    if (packageInfo.ref) {
+      await repoGit.checkout(packageInfo.ref)
+    } else {
+      await checkoutDefaultBranch(repoGit)
+    }
+  }
+
+  return tempDir
+}
+
 export function resolvePackage(input: string): PackageInfo {
   // Handle formats:
   // - vercel-labs/agents
@@ -97,45 +250,21 @@ export function resolvePackage(input: string): PackageInfo {
 }
 
 export async function cloneOrFetchRepo(
-  packageInfo: PackageInfo
+  packageInfo: PackageInfo,
+  requiredSparsePaths: string[] = []
 ): Promise<string> {
-  const tempDir = path.join(
-    os.tmpdir(),
-    "agntx",
-    `${packageInfo.owner}-${packageInfo.repo}`
-  )
-  const repoUrl = `https://github.com/${packageInfo.owner}/${packageInfo.repo}.git`
-
-  const git: SimpleGit = simpleGit()
-
-  // Check if directory exists and is a git repo
-  const isRepo =
-    fs.existsSync(tempDir) && fs.existsSync(path.join(tempDir, ".git"))
-
-  if (isRepo) {
-    // Fetch latest changes in existing repo
-    const repoGit = simpleGit(tempDir)
-    await repoGit.fetch()
-    if (packageInfo.ref) {
-      await repoGit.checkout(packageInfo.ref)
-    } else {
-      await repoGit.pull()
-    }
-  } else {
-    // Remove directory if it exists but is not a repo
-    if (fs.existsSync(tempDir)) {
-      fs.rmSync(tempDir, { recursive: true, force: true })
-    }
-
-    // Clone the repo
-    await git.clone(repoUrl, tempDir)
-
-    // Checkout specific ref if provided
-    if (packageInfo.ref) {
-      const repoGit = simpleGit(tempDir)
-      await repoGit.checkout(packageInfo.ref)
-    }
+  const sparsePaths = normalizeSparsePaths(requiredSparsePaths)
+  if (sparsePaths.length === 0) {
+    return cloneOrFetchRepoFull(packageInfo)
   }
 
-  return tempDir
+  try {
+    return await cloneOrFetchRepoSparse(packageInfo, sparsePaths)
+  } catch (error) {
+    console.warn(
+      `Sparse checkout failed for ${packageInfo.owner}/${packageInfo.repo}; falling back to full checkout.`
+    )
+    console.warn(error instanceof Error ? error.message : String(error))
+    return cloneOrFetchRepoFull(packageInfo, true)
+  }
 }

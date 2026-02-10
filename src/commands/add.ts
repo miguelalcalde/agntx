@@ -69,24 +69,30 @@ export async function addCommand(
   packageInput: string,
   options: AddOptions
 ): Promise<void> {
-  const spinner = ora("Fetching repository...").start()
+  const spinner = ora()
 
   try {
+    traceRail()
+
     // Parse package identifier
     const packageInfo = resolvePackage(packageInput)
-    spinner.text = `Fetching ${packageInfo.owner}/${packageInfo.repo}...`
     const sourceUrl = `https://github.com/${packageInfo.owner}/${packageInfo.repo}.git${
       packageInfo.ref ? `#${packageInfo.ref}` : ""
     }`
     traceStep(`Source: ${sourceUrl}`)
     traceRail()
 
-    // Clone or fetch repository
-    const repoPath = await cloneOrFetchRepo(packageInfo)
-    traceStep("Repository ready")
+    // Clone or fetch repository (sparse to agent source directories).
+    spinner.start(`Cloning ${packageInfo.owner}/${packageInfo.repo}...`)
+    const sparsePaths = packageInfo.sourceRoot
+      ? [packageInfo.sourceRoot]
+      : STANDARD_SOURCE_ROOTS
+    const repoPath = await cloneOrFetchRepo(packageInfo, sparsePaths)
+    spinner.stop()
+    traceStep("Repository cloned")
     traceRail()
 
-    spinner.text = "Discovering agents..."
+    spinner.start("Discovering agents...")
 
     // Resolve source directory
     const availableSourceRoots = findAvailableSourceRoots(repoPath)
@@ -135,12 +141,12 @@ export async function addCommand(
       return
     }
 
-    spinner.succeed(
+    spinner.stop()
+    traceStep(
       `Found ${agents.length} agent${
         agents.length === 1 ? "" : "s"
       } in ${sourceRoot}`
     )
-    traceStep(`Found ${agents.length} agent${agents.length === 1 ? "" : "s"}`)
     traceRail()
 
     // Warn on duplicate names in the selected source directory
@@ -181,8 +187,6 @@ export async function addCommand(
     } else if (options.yes || options.all) {
       agentsToInstall = agents
     } else {
-      traceStep("Select agents to install", true)
-      traceRail()
       agentsToInstall = await selectAgents(agents)
       if (agentsToInstall.length === 0) {
         info("No agents selected")

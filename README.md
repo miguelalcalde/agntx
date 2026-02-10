@@ -106,6 +106,8 @@ If none of the standard source directories exist, install exits with a warning.
 
 Installed agents preserve the source directory structure and original filenames.
 
+To speed up large repositories, `agntx` fetches only these source directories via sparse checkout and falls back to a full checkout if sparse operations are not supported.
+
 ### Remove agents
 
 ```bash
