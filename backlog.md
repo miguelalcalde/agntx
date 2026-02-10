@@ -7,3 +7,4 @@
 - [ ] Refine UI: 
   - [ ] The agent information is too packed with the description and all, we need to figure a way to unpack it. (maybe interactively show more info)
   - [ ] we need more agents to fit the list (maybe problem above)
+  - [ ] add --no-cache flag to clear the cache

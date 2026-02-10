@@ -27,6 +27,13 @@ function normalizeSparsePaths(paths: string[]): string[] {
       .replace(/\/+$/, "")
     if (normalized.length > 0) {
       uniquePaths.add(normalized)
+      // In --no-cone sparse-checkout mode, patterns are gitignore-style:
+      // "dir/sub" only matches a *file* at that exact path.  Adding the
+      // "dir/sub/**" variant ensures all files inside the directory are
+      // also checked out.
+      if (!normalized.includes("*")) {
+        uniquePaths.add(normalized + "/**")
+      }
     }
   }
 
