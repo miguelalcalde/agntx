@@ -57,7 +57,7 @@ function parseInstallMode(mode: string): InstallMode | null {
 }
 
 function traceStep(message: string, active: boolean = false): void {
-  const marker = active ? chalk.cyan("◆") : chalk.green("◇")
+  const marker = active ? chalk.cyan("◇") : chalk.green("◆")
   console.log(`${marker} ${message}`)
 }
 

@@ -51,23 +51,41 @@ function formatAgentChoiceLine(agent: AgentFile): string {
   const maxNameWidth = Math.max(12, Math.min(26, Math.floor(width * 0.28)))
   const badges = getAgentBadges(agent).join(" ")
   const compactName = truncateText(agent.name, maxNameWidth)
-  return `${compactName} ${badges}`
+  const description = compactWhitespace(agent.description || "")
+  const base = badges ? `${compactName} ${badges}` : compactName
+  if (!description) {
+    return base
+  }
+
+  // Match rendered row layout: "│  ◯ " + content
+  const rowPrefixWidth = 5
+  const hint = "(? – Read more)"
+  const separator = "  "
+  const remainingWidth = width - rowPrefixWidth - base.length - separator.length
+  if (remainingWidth <= hint.length + 1) {
+    return base
+  }
+
+  const maxDescriptionWidth = remainingWidth - hint.length - 1
+  const compactDescription = truncateText(description, maxDescriptionWidth)
+  return `${base}${separator}${compactDescription}${chalk.dim(` ${hint}`)}`
 }
 
 function renderCheckboxChoices(choices: any, pointer: number): string {
   let output = ""
   let separatorOffset = 0
+  const railPrefix = `${chalk.dim("│")}  `
 
   choices.forEach((choice: any, i: number) => {
     if (choice.type === "separator") {
       separatorOffset++
-      output += ` ${choice}\n`
+      output += `${railPrefix}${choice}\n`
       return
     }
 
     if (choice.disabled) {
       separatorOffset++
-      output += ` - ${choice.name}`
+      output += `${railPrefix}- ${choice.name}`
       output += ` (${typeof choice.disabled === "string" ? choice.disabled : "Disabled"})`
       output += "\n"
       return
@@ -75,9 +93,9 @@ function renderCheckboxChoices(choices: any, pointer: number): string {
 
     const line = `${getCheckbox(choice.checked)} ${choice.name}`
     if (i - separatorOffset === pointer) {
-      output += chalk.cyan(` ${line}\n`)
+      output += `${railPrefix}${chalk.cyan(line)}\n`
     } else {
-      output += ` ${line}\n`
+      output += `${railPrefix}${line}\n`
     }
   })
 
@@ -214,8 +232,8 @@ export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
       {
         type: "agent-checkbox",
         name: "selected",
-        prefix: chalk.dim("│"),
-        message: `${chalk.cyan("◆")} Select agents to install`,
+        prefix: chalk.cyan("◇"),
+        message: "Select agents to install",
         choices,
         pageSize,
       },
@@ -256,6 +274,7 @@ export async function selectAgentTools(
     {
       type: "checkbox",
       name: "selected",
+      prefix: chalk.cyan("◇"),
       message: "Select target agent tools:",
       choices,
       default: defaults.length > 0 ? defaults : availableTools,
@@ -274,6 +293,7 @@ export async function confirmAction(
     {
       type: "confirm",
       name: "confirmed",
+      prefix: chalk.cyan("◇"),
       message,
       default: defaultValue,
     },
@@ -294,6 +314,7 @@ export async function selectAgentsToRemove(
     {
       type: "checkbox",
       name: "selected",
+      prefix: chalk.cyan("◇"),
       message: "Select agents to remove:",
       choices,
     },
@@ -307,6 +328,7 @@ export async function searchQuery(): Promise<string> {
     {
       type: "input",
       name: "query",
+      prefix: chalk.cyan("◇"),
       message: "Search for agents:",
     },
   ])
@@ -319,6 +341,7 @@ export async function selectSourceRoot(sourceRoots: string[]): Promise<string> {
     {
       type: "list",
       name: "selected",
+      prefix: chalk.cyan("◇"),
       message: "Multiple source directories found. Select one:",
       choices: sourceRoots.map((root) => ({ name: root, value: root })),
     },
@@ -334,6 +357,7 @@ export async function selectInstallMode(
     {
       type: "list",
       name: "selected",
+      prefix: chalk.cyan("◇"),
       message: "Select install mode:",
       choices: [
         { name: "symlink (recommended)", value: "symlink" },
@@ -353,6 +377,7 @@ export async function selectInstallationScope(
     {
       type: "list",
       name: "selected",
+      prefix: chalk.cyan("◇"),
       message: "Select installation scope:",
       choices: [
         {

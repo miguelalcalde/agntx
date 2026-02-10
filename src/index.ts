@@ -16,7 +16,7 @@ program
   .description(
     "A CLI to install agent definitions from GitHub repositories into local agent directories"
   )
-  .version("1.0.1")
+  .version("1.0.2")
 
 program.argument("[package]", "GitHub repository URL or package identifier")
 
