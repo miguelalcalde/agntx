@@ -1,12 +1,12 @@
 # Replicate Plan: `agntx` CLI
 
-A CLI to install agent definitions from GitHub repositories into local agent directories.
+A CLI to install agent files and runtime components from GitHub repositories into local tool directories.
 
 ## Usage
 
 ```bash
-npx agntx add vercel-labs/agents
-npx agntx add https://github.com/vercel-labs/agents
+npx agntx install owner/repo
+npx agntx install https://github.com/owner/repo
 ```
 
 ---
@@ -70,11 +70,11 @@ Unlike skills (which require `SKILL.md`), agents are **any `.md` file** with val
 
 ## 3. CLI Commands
 
-### `add <package>`
+### `install <source>` (`add` alias)
 
 ```bash
-npx agntx add vercel-labs/agents
-npx agntx add https://github.com/vercel-labs/agents
+npx agntx install owner/repo
+npx agntx add owner/repo
 ```
 
 **Options:**
@@ -116,39 +116,11 @@ npx agntx rm -g my-agent      # from global
 
 ### `list, ls`
 
-```bash
-npx agntx list
-npx agntx ls -g
-npx agntx ls -a cursor
-```
+`list` (`ls`) has been removed from the shipped command surface until it is production-ready.
 
-**Options:**
-| Flag                   | Description          |
-| ---------------------- | -------------------- |
-| `-g, --global`         | List global agents   |
-| `-a, --agent <agents>` | Filter by agent tool |
+### `find`
 
-**Output format:**
-```
-Project agents:
-  cursor:
-    code-review    Review code for best practices
-    pr-summary     Generate PR summaries
-  claude:
-    code-review    Review code for best practices
-
-Global agents:
-  (none)
-```
-
-### `find [query]`
-
-```bash
-npx agntx find              # interactive search
-npx agntx find typescript   # search by keyword
-```
-
-Search a registry or GitHub for agent packages.
+`find` has been removed from the shipped command surface.
 
 ### `init [name]`
 
@@ -181,11 +153,11 @@ You are a specialized agent that...
 
 ### `check`
 
-Check for available updates to installed agents.
+Check for available updates to installed agent files.
 
 ### `update`
 
-Update all agents to latest versions.
+Update all installed agent files to latest versions.
 
 ---
 
@@ -267,7 +239,7 @@ async function installAgent(agent: AgentFile, targetDir: string, useSymlink: boo
 }
 ```
 
-**Tracking installed agents:**
+**Tracking installed agent files:**
 Store metadata in `.agntx.json` at install location:
 ```json
 {
@@ -312,10 +284,9 @@ agntx/
 ├── src/
 │   ├── index.ts           # CLI entry point
 │   ├── commands/
-│   │   ├── add.ts
+│   │   ├── install.ts
 │   │   ├── remove.ts
 │   │   ├── list.ts
-│   │   ├── find.ts
 │   │   ├── init.ts
 │   │   ├── check.ts
 │   │   └── update.ts
@@ -365,7 +336,7 @@ agntx/
 | Frontmatter fields | name, description, license, compatibility, metadata, allowed-tools | name, description, model, readonly, is_background |
 | Discovery          | Look for `SKILL.md` files                                          | Look for any `.md` with valid frontmatter         |
 | Package name       | `skills`                                                           | `agntx`                                           |
-| Install command    | `npx skills add`                                                   | `npx agntx add`                                   |
+| Install command    | `npx skills add`                                                   | `npx agntx install` (`add` alias)                 |
 
 ---
 

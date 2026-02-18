@@ -34,7 +34,10 @@ export async function listCommand(options: ListOptions): Promise<void> {
         for (const [installedPath, info] of Object.entries(installed)) {
           // Try to read description from the agent file
           let description: string | undefined
-          const agentPath = path.join(agentDir, info.installedPath || installedPath)
+          const agentPath = path.join(
+            agentDir,
+            info.installedPath || installedPath
+          )
           if (fs.existsSync(agentPath)) {
             try {
               const content = fs.readFileSync(agentPath, "utf-8")
@@ -60,7 +63,7 @@ export async function listCommand(options: ListOptions): Promise<void> {
     }
 
     // Output formatted list
-    console.log(`${scope} agents:`)
+    console.log(`${scope} agent files:`)
 
     let hasAny = false
     for (const tool of targetTools) {

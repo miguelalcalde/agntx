@@ -54,7 +54,10 @@ function collectInstalledEntries(
   return entries
 }
 
-function isCanonicalPathReferenced(canonicalPath: string, global: boolean): boolean {
+function isCanonicalPathReferenced(
+  canonicalPath: string,
+  global: boolean
+): boolean {
   const canonicalFullPath = path.resolve(canonicalPath)
 
   for (const tool of getAllAgentTools()) {
@@ -138,15 +141,15 @@ export async function removeCommand(
       targetTools = getAllAgentTools()
     }
 
-    // Collect all installed agents
+    // Collect all installed agent files
     const allInstalledAgents = collectInstalledEntries(targetTools, globalScope)
 
     if (allInstalledAgents.length === 0) {
-      info("No agents installed")
+      info("No agent files installed")
       return
     }
 
-    // Determine which agents to remove
+    // Determine which agent files to remove
     let selectedNames: string[]
     if (options.all) {
       selectedNames = [...new Set(allInstalledAgents.map((a) => a.name))]
@@ -159,7 +162,7 @@ export async function removeCommand(
       const uniqueNames = [...new Set(allInstalledAgents.map((a) => a.name))]
       selectedNames = await selectAgentsToRemove(uniqueNames)
       if (selectedNames.length === 0) {
-        info("No agents selected")
+        info("No agent files selected")
         return
       }
     }
@@ -169,7 +172,7 @@ export async function removeCommand(
       : allInstalledAgents.filter((entry) => selectedNames.includes(entry.name))
 
     if (entriesToRemove.length === 0) {
-      info("No matching installed agents found")
+      info("No matching installed agent files found")
       return
     }
 
@@ -187,12 +190,14 @@ export async function removeCommand(
       }
     }
 
-    // Remove agents
+    // Remove agent files
     let removedCount = 0
     for (const entry of entriesToRemove) {
       const removed = await uninstallAgent(entry.installedPath, entry.dir)
       if (removed) {
-        success(`Removed ${entry.name} from ${entry.tool} (${entry.installedPath})`)
+        success(
+          `Removed ${entry.name} from ${entry.tool} (${entry.installedPath})`
+        )
         removedCount++
 
         if (entry.canonicalPath) {
@@ -215,10 +220,12 @@ export async function removeCommand(
 
     if (removedCount > 0) {
       success(
-        `Done! Removed ${removedCount} agent${removedCount === 1 ? "" : "s"}.`
+        `Done! Removed ${removedCount} agent file${
+          removedCount === 1 ? "" : "s"
+        }.`
       )
     } else {
-      info("No agents were removed")
+      info("No agent files were removed")
     }
   } catch (err) {
     error(err instanceof Error ? err.message : String(err))

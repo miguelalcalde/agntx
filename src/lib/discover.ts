@@ -4,6 +4,7 @@ import * as path from "path"
 import { AgentFile, parseAgentFile } from "./parse"
 
 export const STANDARD_SOURCE_ROOTS = [
+  "agents",
   ".agents/agents",
   ".cursor/agents",
   ".claude/agents",

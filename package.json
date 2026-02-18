@@ -1,7 +1,7 @@
 {
   "name": "agntx",
   "version": "1.0.3",
-  "description": "A CLI to install agent definitions from GitHub repositories into local agent directories",
+  "description": "A CLI to install agent files and runtime components from repositories or local paths",
   "main": "dist/index.js",
   "bin": {
     "agntx": "dist/index.js"

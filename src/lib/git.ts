@@ -11,6 +11,7 @@ export interface PackageInfo {
 }
 
 const SOURCE_ROOT_ALIASES: Record<string, string> = {
+  agents: "agents",
   ".agents": ".agents/agents",
   ".cursor": ".cursor/agents",
   ".claude": ".claude/agents",
@@ -83,6 +84,14 @@ async function checkoutDefaultBranch(repoGit: SimpleGit): Promise<void> {
   await repoGit.checkout("HEAD")
 }
 
+async function ensureFullCheckout(repoGit: SimpleGit): Promise<void> {
+  try {
+    await repoGit.raw(["sparse-checkout", "disable"])
+  } catch {
+    // Repository is likely not in sparse-checkout mode.
+  }
+}
+
 async function cloneOrFetchRepoFull(
   packageInfo: PackageInfo,
   forceFreshClone: boolean = false
@@ -107,9 +116,11 @@ async function cloneOrFetchRepoFull(
     // Fetch latest changes in existing repo
     const repoGit = simpleGit(tempDir)
     await repoGit.fetch()
+    await ensureFullCheckout(repoGit)
     if (packageInfo.ref) {
       await repoGit.checkout(packageInfo.ref)
     } else {
+      await checkoutDefaultBranch(repoGit)
       await repoGit.pull()
     }
   } else {
@@ -198,7 +209,7 @@ export function resolvePackage(input: string): PackageInfo {
   }
 
   // Handle GitHub shorthand
-  if (/^[^\/]+\/[^\/]+(?:\/\.[^\/]+)?$/.test(input)) {
+  if (/^[^\/]+\/[^\/]+(?:\/(?:\.[^\/]+|agents))?$/.test(input)) {
     const segments = input.split("/")
     owner = segments[0]
     repo = segments[1]

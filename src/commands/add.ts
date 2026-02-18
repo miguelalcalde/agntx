@@ -76,9 +76,9 @@ export async function addCommand(
 
     // Parse package identifier
     const packageInfo = resolvePackage(packageInput)
-    const sourceUrl = `https://github.com/${packageInfo.owner}/${packageInfo.repo}.git${
-      packageInfo.ref ? `#${packageInfo.ref}` : ""
-    }`
+    const sourceUrl = `https://github.com/${packageInfo.owner}/${
+      packageInfo.repo
+    }.git${packageInfo.ref ? `#${packageInfo.ref}` : ""}`
     traceStep(`Source: ${sourceUrl}`)
     traceRail()
 
@@ -123,7 +123,7 @@ export async function addCommand(
       } else if (options.yes) {
         spinner.fail("Multiple source directories found")
         warn(
-          "Use a suffixed GitHub URL (/.agents, /.cursor, /.claude) to select one source directory."
+          "Use a suffixed GitHub URL (/agents, /.agents, /.cursor, /.claude) to select one source directory."
         )
         process.exit(1)
       } else {
@@ -385,7 +385,7 @@ export async function addCommand(
             source,
             mode: installMode,
             canonicalPath,
-            overwrite
+            overwrite,
           })
           success(`${agent.name} → ${targetDir}/${installPath}`)
           installedCount++
@@ -413,7 +413,9 @@ export async function addCommand(
         installedCount === 1 ? "" : "s"
       }.`
     )
-    info(`Summary: ${installedCount} installed, ${failedCount} failed, ${skippedCount} skipped.`)
+    info(
+      `Summary: ${installedCount} installed, ${failedCount} failed, ${skippedCount} skipped.`
+    )
     for (const tool of targetTools) {
       const stats = toolStats.get(tool)
       if (!stats) {
