@@ -12,7 +12,10 @@
   ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": "npm run build",
+    "pack:check": "npm pack --dry-run",
+    "secrets:scan": "gitleaks git --verbose --redact",
+    "release:check": "pnpm run build && pnpm run pack:check",
+    "prepublishOnly": "pnpm run release:check",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [
@@ -44,5 +47,6 @@
   },
   "engines": {
     "node": ">=18.0.0"
-  }
+  },
+  "packageManager": "pnpm@10.6.2"
 }

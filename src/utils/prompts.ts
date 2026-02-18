@@ -16,6 +16,14 @@ const inquirerFigures = requireFromInquirer("figures") as {
 }
 const BaseCheckboxPrompt: any = requireFromInquirer("inquirer/lib/prompts/checkbox")
 let hasRegisteredAgentCheckboxPrompt = false
+let hasRegisteredRailCheckboxPrompt = false
+
+interface RailCheckboxChoice<T> {
+  name: string
+  value: T
+  short?: string
+  disabled?: string
+}
 
 function truncateText(value: string, maxLength: number): string {
   if (maxLength <= 0) {
@@ -196,12 +204,58 @@ class AgentCheckboxPrompt extends BaseCheckboxPrompt {
   }
 }
 
+class RailCheckboxPrompt extends BaseCheckboxPrompt {
+  render(error?: string): void {
+    let message = this.getQuestion()
+    let bottomContent = ""
+
+    if (!this.dontShowHints) {
+      message +=
+        `(Press ${chalk.cyan.bold("<space>")} to select, ${chalk.cyan.bold("<a>")} to toggle all, ${chalk.cyan.bold("<i>")} to invert selection, and ${chalk.cyan.bold("<enter>")} to proceed)`
+    }
+
+    if (this.status === "answered") {
+      message += chalk.cyan(this.selection.join(", "))
+    } else {
+      const choicesStr = renderCheckboxChoices(this.opt.choices, this.pointer)
+      const realIndexPosition = getRealIndexPosition(this.opt.choices, this.pointer)
+      message +=
+        "\n" +
+        this.paginator.paginate(choicesStr, realIndexPosition, this.opt.pageSize)
+    }
+
+    if (error) {
+      bottomContent = `${chalk.red(">>")} ${error}`
+    }
+
+    this.screen.render(message, bottomContent)
+  }
+}
+
 function ensureAgentCheckboxPromptRegistered(): void {
   if (hasRegisteredAgentCheckboxPrompt) {
     return
   }
   ;(inquirer as any).registerPrompt("agent-checkbox", AgentCheckboxPrompt)
   hasRegisteredAgentCheckboxPrompt = true
+}
+
+function ensureRailCheckboxPromptRegistered(): void {
+  if (hasRegisteredRailCheckboxPrompt) {
+    return
+  }
+  ;(inquirer as any).registerPrompt("rail-checkbox", RailCheckboxPrompt)
+  hasRegisteredRailCheckboxPrompt = true
+}
+
+async function withHiddenPointer<T>(run: () => Promise<T>): Promise<T> {
+  const previousPointer = inquirerFigures.pointer
+  inquirerFigures.pointer = " "
+  try {
+    return await run()
+  } finally {
+    inquirerFigures.pointer = previousPointer
+  }
 }
 
 export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
@@ -223,11 +277,7 @@ export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
     return choice
   })
 
-  const previousPointer = inquirerFigures.pointer
-  inquirerFigures.pointer = " "
-
-  let selected: AgentFile[] = []
-  try {
+  return withHiddenPointer(async () => {
     const result = await inquirer.prompt([
       {
         type: "agent-checkbox",
@@ -238,12 +288,80 @@ export async function selectAgents(agents: AgentFile[]): Promise<AgentFile[]> {
         pageSize,
       },
     ])
-    selected = result.selected as AgentFile[]
-  } finally {
-    inquirerFigures.pointer = previousPointer
-  }
+    return result.selected as AgentFile[]
+  })
+}
 
-  return selected
+export async function selectRailCheckbox<T>(params: {
+  message: string
+  choices: RailCheckboxChoice<T>[]
+  defaultValues?: T[]
+  pageSize?: number
+  loop?: boolean
+}): Promise<T[]> {
+  ensureRailCheckboxPromptRegistered()
+
+  return withHiddenPointer(async () => {
+    const result = await inquirer.prompt([
+      {
+        type: "rail-checkbox",
+        name: "selected",
+        prefix: chalk.cyan("◇"),
+        message: params.message,
+        choices: params.choices,
+        default: params.defaultValues,
+        pageSize: params.pageSize ?? Math.min(params.choices.length + 2, 20),
+        loop: params.loop ?? false,
+      },
+    ])
+    return result.selected as T[]
+  })
+}
+
+export async function selectRailList<T>(params: {
+  message: string
+  choices: Array<{ name: string; value: T }>
+  defaultValue?: T
+}): Promise<T> {
+  const result = await inquirer.prompt([
+    {
+      type: "list",
+      name: "selected",
+      prefix: chalk.cyan("◇"),
+      message: params.message,
+      choices: params.choices,
+      default: params.defaultValue,
+    },
+  ])
+  return result.selected as T
+}
+
+export async function inputRailText(message: string): Promise<string> {
+  const result = await inquirer.prompt([
+    {
+      type: "input",
+      name: "value",
+      prefix: chalk.cyan("◇"),
+      message,
+    },
+  ])
+  return String(result.value || "")
+}
+
+export async function confirmRailAction(
+  message: string,
+  defaultValue: boolean = false
+): Promise<boolean> {
+  const result = await inquirer.prompt([
+    {
+      type: "confirm",
+      name: "confirmed",
+      prefix: chalk.cyan("◇"),
+      message,
+      default: defaultValue,
+    },
+  ])
+  return Boolean(result.confirmed)
 }
 
 export async function selectAgentTools(

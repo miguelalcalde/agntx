@@ -1,0 +1,8 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Allow known non-secret test placeholders"
+regexes = [
+  '''(?i)example|placeholder|sample|dummy'''
+]

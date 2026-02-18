@@ -4,6 +4,7 @@ dist/
 .DS_Store
 *.tsbuildinfo
 
-.agents
-.claude
-.cursor
+.agents/
+.backlog/
+.claude/
+.cursor/

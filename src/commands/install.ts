@@ -1,6 +1,6 @@
 import * as fs from "fs"
 import * as path from "path"
-import inquirer from "inquirer"
+import chalk from "chalk"
 import simpleGit from "simple-git"
 import { cloneOrFetchRepo, resolvePackage } from "../lib/git"
 import {
@@ -20,7 +20,13 @@ import {
   writeRuntimeManifest,
   Issue,
 } from "../lib/layout"
-import { error, info, success, warn } from "../utils/output"
+import {
+  confirmRailAction,
+  inputRailText,
+  selectRailCheckbox,
+  selectRailList,
+} from "../utils/prompts"
+import { error, info, rail, spacer, step, success, warn } from "../utils/output"
 
 type SelectableKind = "agents" | "skills" | "commands" | "files"
 type ModeValue = "copy" | "symlink"
@@ -83,34 +89,32 @@ function parseSelector(value: string | boolean | undefined): {
 }
 
 async function selectKindsInteractive(): Promise<SelectableKind[]> {
-  const { selectedKinds } = await inquirer.prompt([
-    {
-      type: "checkbox",
-      name: "selectedKinds",
-      message: "Select component categories to install:",
-      choices: [
-        new inquirer.Separator("Controls: <space> select, <a> toggle all"),
-        ...SELECTABLE_KIND_CONFIG.map((entry) => ({
-          name: entry.label,
-          value: entry.kind,
-        })),
-      ],
-      default: SELECTABLE_KIND_CONFIG.map((entry) => entry.kind),
-      pageSize: 10,
-      loop: false,
-    },
-  ])
-
-  return selectedKinds as SelectableKind[]
+  return selectRailCheckbox<SelectableKind>({
+    message: "Select component categories to install",
+    choices: SELECTABLE_KIND_CONFIG.map((entry) => ({
+      name: entry.label,
+      value: entry.kind,
+    })),
+    defaultValues: SELECTABLE_KIND_CONFIG.map((entry) => entry.kind),
+    pageSize: 10,
+    loop: false,
+  })
 }
 
 function formatIssues(issues: Issue[]): void {
-  for (const issue of issues) {
-    const prefix = issue.severity === "error" ? error : warn
-    prefix(
-      `${issue.code}: ${issue.message}${issue.path ? ` (${issue.path})` : ""}`
-    )
+  if (issues.length === 0) {
+    return
   }
+  step("Source validation notices")
+  rail()
+  for (const issue of issues) {
+    const text = `${issue.code}: ${issue.message}${
+      issue.path ? ` (${issue.path})` : ""
+    }`
+    const marker = issue.severity === "error" ? chalk.red("■") : chalk.yellow("◇")
+    rail(`${marker} ${text}`)
+  }
+  rail()
 }
 
 async function resolveSource(input: string): Promise<SourceResolution> {
@@ -163,16 +167,8 @@ async function selectNamesInteractive(
 
   let filtered = available
   if (available.length > 8) {
-    const { query } = await inquirer.prompt([
-      {
-        type: "input",
-        name: "query",
-        message: `Search ${label} (optional):`,
-      },
-    ])
-    const normalized = String(query || "")
-      .trim()
-      .toLowerCase()
+    const query = await inputRailText(`Search ${label} (optional):`)
+    const normalized = query.trim().toLowerCase()
     if (normalized.length > 0) {
       const matches = available.filter((entry) =>
         entry.toLowerCase().includes(normalized)
@@ -187,22 +183,13 @@ async function selectNamesInteractive(
     }
   }
 
-  const { selected } = await inquirer.prompt([
-    {
-      type: "checkbox",
-      name: "selected",
-      message: `Select ${label}:`,
-      choices: [
-        new inquirer.Separator("Controls: <space> select, <a> toggle all"),
-        ...filtered.map((entry) => ({ name: entry, value: entry })),
-      ],
-      default: filtered,
-      pageSize: Math.min(filtered.length + 2, 20),
-      loop: false,
-    },
-  ])
-
-  return selected as string[]
+  return selectRailCheckbox<string>({
+    message: `Select ${label}`,
+    choices: filtered.map((entry) => ({ name: entry, value: entry })),
+    defaultValues: filtered,
+    pageSize: Math.min(filtered.length + 2, 20),
+    loop: false,
+  })
 }
 
 function validateExplicitSelection(
@@ -238,18 +225,14 @@ async function resolveScopeAndPath(
     return { scope: "local" }
   }
 
-  const { scope } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "scope",
-      message: "Select installation scope:",
-      choices: [
-        { name: "Local (current project)", value: "local" },
-        { name: "Global (home directory)", value: "global" },
-      ],
-      default: "local",
-    },
-  ])
+  const scope = await selectRailList<ScopeName>({
+    message: "Select installation scope:",
+    choices: [
+      { name: "Local (current project)", value: "local" },
+      { name: "Global (home directory)", value: "global" },
+    ],
+    defaultValue: "local",
+  })
   return { scope }
 }
 
@@ -266,19 +249,14 @@ async function resolveMode(options: InstallCommandOptions): Promise<ModeValue> {
     return "symlink"
   }
 
-  const { mode } = await inquirer.prompt([
-    {
-      type: "list",
-      name: "mode",
-      message: "Select install mode:",
-      choices: [
-        { name: "symlink (recommended)", value: "symlink" },
-        { name: "copy", value: "copy" },
-      ],
-      default: "symlink",
-    },
-  ])
-  return mode
+  return selectRailList<ModeValue>({
+    message: "Select install mode:",
+    choices: [
+      { name: "symlink (recommended)", value: "symlink" },
+      { name: "copy", value: "copy" },
+    ],
+    defaultValue: "symlink",
+  })
 }
 
 async function resolveTools(
@@ -303,23 +281,18 @@ async function resolveTools(
     return supportedTools
   }
 
-  const { tools } = await inquirer.prompt([
-    {
-      type: "checkbox",
-      name: "tools",
-      message: "Select tools:",
-      choices: [
-        new inquirer.Separator("Controls: <space> select, <a> toggle all"),
-        ...supportedTools.map((tool) => ({ name: tool, value: tool })),
-      ],
-      default: supportedTools,
-      pageSize: 8,
-      loop: false,
-      validate: (value: ToolName[]) =>
-        value.length > 0 ? true : "Select at least one tool",
-    },
-  ])
-  return tools as ToolName[]
+  const selectedTools = await selectRailCheckbox<ToolName>({
+    message: "Select tools",
+    choices: supportedTools.map((tool) => ({ name: tool, value: tool })),
+    defaultValues: supportedTools,
+    pageSize: 8,
+    loop: false,
+  })
+  if (selectedTools.length === 0) {
+    warn("Select at least one tool.")
+    return resolveTools(options)
+  }
+  return selectedTools
 }
 
 async function resolveOverwrite(
@@ -331,15 +304,7 @@ async function resolveOverwrite(
   if (options.yes || !isInteractiveSession()) {
     return false
   }
-  const { overwrite } = await inquirer.prompt([
-    {
-      type: "confirm",
-      name: "overwrite",
-      message: "Overwrite existing paths when present?",
-      default: false,
-    },
-  ])
-  return overwrite as boolean
+  return confirmRailAction("Overwrite existing paths when present?", false)
 }
 
 function relativeFromBase(baseDir: string, targetPath: string): string {
@@ -451,9 +416,33 @@ export async function installCommand(
   options: InstallCommandOptions
 ): Promise<void> {
   try {
+    const interactive = !options.yes && isInteractiveSession()
+    const showStep = (message: string, active: boolean = false): void => {
+      if (interactive) {
+        step(message, active)
+      }
+    }
+    const showRail = (message?: string): void => {
+      if (interactive) {
+        rail(message)
+      }
+    }
+    const showSpacer = (): void => {
+      if (interactive) {
+        spacer()
+      }
+    }
+
     const source = await resolveSource(sourceInput)
     const discovered = discoverSource(source.sourcePath)
     formatIssues(discovered.issues)
+    showSpacer()
+    showStep(`Source: ${sourceInput}`, true)
+    showRail(`Resolved path: ${source.sourcePath}`)
+    showRail(
+      `Discovered components: agents=${discovered.agents.length}, skills=${discovered.skills.length}, commands=${discovered.commands.length}, files=${discovered.fileGroups.length}`
+    )
+    showRail()
 
     const selectorByKind: Record<SelectableKind, SelectorState> = {
       agents: parseSelector(options.agents),
@@ -470,10 +459,12 @@ export async function installCommand(
       selectedKinds = SELECTABLE_KIND_CONFIG.filter(
         (entry) => selectorByKind[entry.kind].requested
       ).map((entry) => entry.kind)
+      showStep(`Using categories from flags: ${selectedKinds.join(", ")}`)
     } else if (options.yes || !isInteractiveSession()) {
       selectedKinds = SELECTABLE_KIND_CONFIG.map((entry) => entry.kind)
     } else {
       selectedKinds = await selectKindsInteractive()
+      showRail()
     }
 
     if (selectedKinds.length === 0) {
@@ -482,8 +473,11 @@ export async function installCommand(
     }
 
     const { scope, scopePath } = await resolveScopeAndPath(options)
+    showRail()
     const mode = await resolveMode(options)
+    showRail()
     const overwrite = await resolveOverwrite(options)
+    showRail()
 
     const resolveCategory = async (
       kind: SelectableKind,
@@ -499,12 +493,16 @@ export async function installCommand(
       }
       const state = selectorByKind[kind]
       if (state.values && state.values.length > 0) {
-        return validateExplicitSelection(kind, state.values, available)
+        const validated = validateExplicitSelection(kind, state.values, available)
+        showStep(`Using ${label} from flags: ${validated.length}`)
+        return validated
       }
       if (options.yes || !isInteractiveSession()) {
         return available
       }
-      return selectNamesInteractive(label, available)
+      const selected = await selectNamesInteractive(label, available)
+      showRail()
+      return selected
     }
 
     const selectedAgents = await resolveCategory(
@@ -528,35 +526,21 @@ export async function installCommand(
       "file groups"
     )
     const tools = await resolveTools(options)
+    showRail()
     const baseDir = resolveBaseDir(scope, scopePath)
     const canonicalRoot = getCanonicalRoot(baseDir, scope)
     const runId = new Date().toISOString().replace(/[:.]/g, "-")
     const backupRoot = path.join(canonicalRoot, "backups", runId)
     const toolSupport = DEFAULT_TOOL_SUPPORT
 
-    if (!options.yes && isInteractiveSession()) {
-      const { proceed } = await inquirer.prompt([
-        {
-          type: "confirm",
-          name: "proceed",
-          default: true,
-          message:
-            `Proceed with install?\n` +
-            `- source: ${sourceInput}\n` +
-            `- scope: ${scope}\n` +
-            `- mode: ${mode}\n` +
-            `- overwrite: ${overwrite ? "overwrite" : "skip"}\n` +
-            `- tools: ${tools.join(", ")}\n` +
-            `- agents: ${selectedAgents.length}\n` +
-            `- skills: ${selectedSkills.length}\n` +
-            `- commands: ${selectedCommands.length}\n` +
-            `- files: ${selectedFiles.length}`,
-        },
-      ])
+    if (interactive) {
+      const proceed = await confirmRailAction("Proceed with install?", true)
       if (!proceed) {
         info("Installation cancelled")
         return
       }
+      showStep("Install confirmed")
+      showRail()
     }
 
     const runtimeAgents: RuntimeComponentEntry[] = []
@@ -750,11 +734,23 @@ export async function installCommand(
       writeRuntimeManifest(canonicalRoot, runtimeManifest)
     }
 
-    success(
-      `${
-        options.dryRun ? "Dry-run complete" : "Install complete"
-      }: installed=${installedCount}, skipped=${skippedCount}, failed=${failedCount}, backups=${backupCount}`
-    )
+    const completionLabel = options.dryRun
+      ? "Dry-run complete"
+      : "Install complete"
+    if (interactive) {
+      step(completionLabel)
+      rail(`Installed: ${installedCount}`)
+      rail(`Skipped: ${skippedCount}`)
+      rail(`Failed: ${failedCount}`)
+      rail(`Backups: ${backupCount}`)
+      rail(`State path: ${path.join(canonicalRoot, "install-state.json")}`)
+      rail()
+      success(completionLabel)
+    } else {
+      success(
+        `${completionLabel}: installed=${installedCount}, skipped=${skippedCount}, failed=${failedCount}, backups=${backupCount}`
+      )
+    }
     toJsonOutput(
       {
         summary: {
