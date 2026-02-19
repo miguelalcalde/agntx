@@ -111,7 +111,8 @@ function formatIssues(issues: Issue[]): void {
     const text = `${issue.code}: ${issue.message}${
       issue.path ? ` (${issue.path})` : ""
     }`
-    const marker = issue.severity === "error" ? chalk.red("■") : chalk.yellow("◇")
+    const marker =
+      issue.severity === "error" ? chalk.red("■") : chalk.yellow("◇")
     rail(`${marker} ${text}`)
   }
   rail()
@@ -493,7 +494,11 @@ export async function installCommand(
       }
       const state = selectorByKind[kind]
       if (state.values && state.values.length > 0) {
-        const validated = validateExplicitSelection(kind, state.values, available)
+        const validated = validateExplicitSelection(
+          kind,
+          state.values,
+          available
+        )
         showStep(`Using ${label} from flags: ${validated.length}`)
         return validated
       }
@@ -508,7 +513,7 @@ export async function installCommand(
     const selectedAgents = await resolveCategory(
       "agents",
       discovered.agents,
-      "agent files"
+      "agents"
     )
     const selectedSkills = await resolveCategory(
       "skills",
