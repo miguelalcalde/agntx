@@ -1,17 +1,59 @@
 # agntx
 
-A CLI to install agent files and related runtime components from GitHub repositories or local paths.
+Your agent files manager. Install skills, agents, commands, and more from GitHub repositories or local paths.
 
-## Installation
+## Motivation
+
+Managing agent resources across projects usually means repeating manual setup:
+
+- copying agent files between repos
+- syncing tool-specific folders for Cursor and Claude
+- keeping local and global setups consistent
+
+`agntx` automates that workflow so teams can install, update, and remove agent assets in a repeatable way from one command.
+
+## Getting Started
+
+### 1) Check requirements
+
+`agntx` requires Node.js `>=18`.
+
+### 2) Install or run with npx
+
+Install globally:
 
 ```bash
 npm install -g agntx
 ```
 
-Or use with npx:
+Or run directly with npx (no global install):
 
 ```bash
 npx agntx install owner/repo
+```
+
+### 3) Install resources from a source
+
+Quick start using interactive mode:
+
+```bash
+npx agntx install owner/repo
+```
+
+In interactive mode, the wizard guides you through:
+
+1. component categories (`agents`, `skills`, `commands`, `files`)
+2. scope (`local` or `global`, unless `--path` is provided)
+3. mode (`symlink` or `copy`)
+4. overwrite policy (single global decision for the run)
+5. per-category item selection
+6. tools (`claude`, `cursor`, or both)
+7. final confirmation
+
+### 4) Verify available commands
+
+```bash
+npx agntx --help
 ```
 
 ## Usage
@@ -51,16 +93,6 @@ npx agntx add owner/repo
 - `-v, --verbose` - verbose output
 - `-y, --yes` - skip prompts and confirmations
 - `--json` - emit JSON summary output
-
-When running interactively (without `-y`), the wizard prompts in this order:
-
-1. component categories (`agents`, `skills`, `commands`, `files`)
-2. scope (`local` or `global`, unless `--path` is provided)
-3. mode (`symlink` or `copy`)
-4. overwrite policy (single global decision for the run)
-5. per-category item selection
-6. tools (`claude`, `cursor`, or both)
-7. final confirmation
 
 If a selected category has no discovered items, the installer warns and continues.
 The final output is a compact summary line with install counts.
