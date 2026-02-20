@@ -22,7 +22,6 @@ import {
 } from "../lib/layout"
 import {
   confirmRailAction,
-  inputRailText,
   selectRailCheckbox,
   selectRailList,
 } from "../utils/prompts"
@@ -166,29 +165,11 @@ async function selectNamesInteractive(
     return []
   }
 
-  let filtered = available
-  if (available.length > 8) {
-    const query = await inputRailText(`Search ${label} (optional):`)
-    const normalized = query.trim().toLowerCase()
-    if (normalized.length > 0) {
-      const matches = available.filter((entry) =>
-        entry.toLowerCase().includes(normalized)
-      )
-      if (matches.length > 0) {
-        filtered = matches
-      } else {
-        warn(
-          `No ${label} matched "${normalized}". Showing all available ${label}.`
-        )
-      }
-    }
-  }
-
   return selectRailCheckbox<string>({
     message: `Select ${label}`,
-    choices: filtered.map((entry) => ({ name: entry, value: entry })),
-    defaultValues: filtered,
-    pageSize: Math.min(filtered.length + 2, 20),
+    choices: available.map((entry) => ({ name: entry, value: entry })),
+    defaultValues: available,
+    pageSize: Math.min(available.length + 2, 20),
     loop: false,
   })
 }
