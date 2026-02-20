@@ -1,6 +1,6 @@
 {
   "name": "agntx",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Your agent files manager. Install skills, agents, commands, and more from GitHub repositories or local paths.",
   "main": "dist/index.js",
   "bin": {

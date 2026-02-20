@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.5
+
+### Patch Changes
+
+- Replace search prompt with scrollable list in interactive install
+
 ## 1.0.4
 
 ### Patch Changes
